@@ -1,0 +1,40 @@
+name: quality-gate
+on:
+  push:
+    branches:
+    - develop
+    - main
+    - release
+    tags:
+    - "v*"
+  pull_request:
+    branches:
+    - develop
+    - main
+    - release
+
+jobs:
+  code-quality:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+
+    steps:
+    - name: Check out repository code
+      uses: actions/checkout@v3
+
+    - name: Configure python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.10
+
+    - name: Install tox dependencies
+      run: pip install tox-gh
+
+    - name: Setup tests suites
+      run: tox -vv --notest
+
+    - name: Run test suite
+      run: tox --skip-pkg-install
+      env:
+        PYTEST_ADDOPTS: "-vv --durations=10"
