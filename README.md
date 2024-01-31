@@ -27,5 +27,6 @@ $ pre-commit install
 
 # Setup environnement de dev'
 
-- `$ tox devenv -e devenv`
-- `pre-commit install`
+```shell
+just devenv
+```

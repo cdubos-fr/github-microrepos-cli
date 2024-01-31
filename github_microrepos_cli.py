@@ -24,11 +24,16 @@ import asyncio
 class NonSortedPythonDeps(req_file.PythonDeps):
     # We need something to manage editable order
     def _parse_requirements(
-        self, opt: req_file.Namespace,
+        self,
+        opt: req_file.Namespace,
         recurse: bool,
     ) -> list[req_file.ParsedRequirement]:
         result, found = [], set()
-        for parsed_line in self._parse_and_recurse(str(self._path), self.is_constraint, recurse):
+        for parsed_line in self._parse_and_recurse(
+            str(self._path),
+            self.is_constraint,
+            recurse,
+        ):
             if parsed_line.is_requirement:
                 parsed_req = self._handle_requirement_line(parsed_line)
                 key = str(parsed_req)
@@ -159,36 +164,42 @@ def setup_venv(dest_path: str, force: bool = False) -> None:
     if not os.path.exists(venv_path) or force:
         click.echo(f"Création du virtualenv {venv_path}")
         virtualenv.cli_run([venv_path])
-    if os.path.exists(os.path.join(dest_path, 'tox.ini')):
+    if os.path.exists(os.path.join(dest_path, "tox.ini")):
         try:
             tox_args = ["devenv", "-e", "devenv", "-c", dest_path, venv_path]
             if force:
                 tox_args.append("-r")
             click.echo("Installation des dépendances")
-            with mock.patch('tox.tox_env.python.pip.req_file.PythonDeps', NonSortedPythonDeps):
+            with mock.patch(
+                "tox.tox_env.python.pip.req_file.PythonDeps",
+                NonSortedPythonDeps,
+            ):
                 tox.run.run(tox_args)
         except SystemExit as e:
             if e.args != (0,):
-                click.echo(f"Tox ne peut initialiser l'environnement de dev pour {dest_path}")
+                click.echo(
+                    f"Tox ne peut initialiser l'environnement de dev pour {dest_path}",
+                )
 
     if os.path.exists(
         config_file := os.path.realpath(
             os.path.join(
-            dest_path,
-            '.pre-commit-config.yaml',
+                dest_path,
+                ".pre-commit-config.yaml",
             ),
         ),
     ):
         click.echo("Installation de pre-commit")
         from pre_commit.commands.install_uninstall import install
         from pre_commit.commands.install_uninstall import Store
+
         install(
             config_file,
             Store(),
             None,
             overwrite=force,
             hooks=True,
-            git_dir=os.path.realpath(os.path.join(dest_path, '.git')),
+            git_dir=os.path.realpath(os.path.join(dest_path, ".git")),
         )
 
 
@@ -210,7 +221,9 @@ def create_tool_folder(
 ) -> None:
     dest_path = os.path.join(dest_path_folder, tool.name)
     if os.path.exists(dest_path) and not force:
-        click.echo(f"Le dossier {dest_path} existe déjà, l'installation de l'outil est skip")
+        click.echo(
+            f"Le dossier {dest_path} existe déjà, l'installation de l'outil est skip",
+        )
         return
     if os.path.exists(dest_path) and force:
         click.echo(f"Suppression du dossier {dest_path}")
@@ -239,7 +252,9 @@ def clone_repo(
 ) -> str:
     dest_path = os.path.join(dest_path_folder, repo.name)
     if os.path.exists(dest_path) and not force:
-        click.echo(f"Le dossier {dest_path} existe déjà, le clonage du repo est ignorée")
+        click.echo(
+            f"Le dossier {dest_path} existe déjà, le clonage du repo est ignorée",
+        )
         return dest_path
     if os.path.exists(dest_path) and force:
         click.echo(f"Suppression du dossier {dest_path}")
@@ -317,103 +332,6 @@ def cli(ctx: click.Context, target: str, all_target: bool, force: bool) -> None:
 @click.pass_context
 def repo_manager(ctx: click.Context) -> None:
     ...
-
-
-@repo_manager.command(
-    short_help=(
-        "Clone un repo github de l'organisation founi en paramètre"
-    ),
-)
-@click.argument("repos", nargs=-1)
-@click.option(
-    "-v/-V",
-    "--with-venv/--without-venv",
-    is_flag=True,
-    show_default=True,
-    default=False,
-)
-@click.option(
-    "-b",
-    "--branch",
-    default="develop",
-    show_default=True,
-    help="nom de la branche par défaut",
-)
-@click.option(
-    "-o", "-u", "--organization", "--user", "organization_or_user",
-    show_default=True, help=(
-        "Nom de l'organisation ou l'utilisateur"
-        "proprietaire du repo"
-    ),
-)
-@click.option(
-    "-p", "--prefix", default="",
-    show_default=True, help=(
-        "prefix utilisé pour filtré la liste des repos récupéré"
-    ),
-)
-@click.option(
-    "-m", "--auth-mode",
-    type=click.Choice(["ssh", "token"]), default="token",
-    show_default=True, help="méthode utilisé pour l'authentification git",
-)
-@click.pass_context
-def clone(
-    ctx: click.Context,
-    repos: list[str],
-    with_venv: bool,
-    branch: str,
-    organization_or_user: str,
-    prefix: str,
-    auth_mode: Literal["ssh", "token"],
-) -> None:
-    options: GenericOptions = ctx.obj["OPTIONS"]
-
-    assert_argument(repos, options.all_target)
-
-    auth_manager = AuthManager(auth_mode)
-    gh_manager = github.Github(login_or_token=auth_manager.token)
-
-    results: Any
-    if options.all_target:
-        results = gh_manager.search_repositories(
-            prefix,
-            **{
-                "in": "name",
-                "org": organization_or_user,
-                "user": organization_or_user,
-            },
-        )
-    else:
-        try:
-            results = [gh_manager.get_repo(f"{organization_or_user}/{repo}") for repo in repos]
-        except github.UnknownObjectException:
-            raise click.UsageError(
-                "un ou plusieur repository n'existe pas "
-                "ou ne sont pas associé "
-                f"a l'organisation ou l'utilisateur {organization_or_user}",
-            )
-    click.echo("Clone des repos")
-    for repo in results:
-        if repo.name.startswith(prefix) and (
-            repo.name != os.path.basename(__file__).removesuffix('.py').replace("_", '-')
-        ):
-            try:
-                clone_repo(
-                    repo,
-                    auth_manager=auth_manager,
-                    dest_path_folder=options.dest_path_folder,
-                    force=options.force,
-                )
-            except Exception as e:
-                click.echo(f"Le clone ne s'est pas bien terminé {e}")
-
-    if with_venv:
-        ctx.invoke(generate_venv, folders=repos)
-
-    ctx.invoke(checkout_branch, folders=repos, branch=branch)
-
-    click.echo("L'environement a été monter avec succès.")
 
 
 @repo_manager.command(
@@ -500,6 +418,110 @@ def checkout_branch(
                 click.echo(f"Impossible de pull la branche {repo.active_branch}")
 
 
+@repo_manager.command(
+    short_help=("Clone un repo github de l'organisation founi en paramètre"),
+)
+@click.argument("repos", nargs=-1)
+@click.option(
+    "-v/-V",
+    "--with-venv/--without-venv",
+    is_flag=True,
+    show_default=True,
+    default=False,
+)
+@click.option(
+    "-b",
+    "--branch",
+    default="develop",
+    show_default=True,
+    help="nom de la branche par défaut",
+)
+@click.option(
+    "-o",
+    "-u",
+    "--organization",
+    "--user",
+    "organization_or_user",
+    show_default=True,
+    help=("Nom de l'organisation ou l'utilisateur" "proprietaire du repo"),
+)
+@click.option(
+    "-p",
+    "--prefix",
+    default="",
+    show_default=True,
+    help=("prefix utilisé pour filtré la liste des repos récupéré"),
+)
+@click.option(
+    "-m",
+    "--auth-mode",
+    type=click.Choice(["ssh", "token"]),
+    default="token",
+    show_default=True,
+    help="méthode utilisé pour l'authentification git",
+)
+@click.pass_context
+def clone(
+    ctx: click.Context,
+    repos: list[str],
+    with_venv: bool,
+    branch: str,
+    organization_or_user: str,
+    prefix: str,
+    auth_mode: Literal["ssh", "token"],
+) -> None:
+    options: GenericOptions = ctx.obj["OPTIONS"]
+
+    assert_argument(repos, options.all_target)
+
+    auth_manager = AuthManager(auth_mode)
+    gh_manager = github.Github(login_or_token=auth_manager.token)
+
+    results: Any
+    if options.all_target:
+        results = gh_manager.search_repositories(
+            prefix,
+            **{
+                "in": "name",
+                "org": organization_or_user,
+                "user": organization_or_user,
+            },
+        )
+    else:
+        try:
+            results = [
+                gh_manager.get_repo(f"{organization_or_user}/{repo}") for repo in repos
+            ]
+        except github.UnknownObjectException:
+            raise click.UsageError(
+                "un ou plusieur repository n'existe pas "
+                "ou ne sont pas associé "
+                f"a l'organisation ou l'utilisateur {organization_or_user}",
+            )
+    click.echo("Clone des repos")
+    for repo in results:
+        if repo.name.startswith(prefix) and (
+            repo.name
+            != os.path.basename(__file__).removesuffix(".py").replace("_", "-")
+        ):
+            try:
+                clone_repo(
+                    repo,
+                    auth_manager=auth_manager,
+                    dest_path_folder=options.dest_path_folder,
+                    force=options.force,
+                )
+            except Exception as e:
+                click.echo(f"Le clone ne s'est pas bien terminé {e}")
+
+    if with_venv:
+        ctx.invoke(generate_venv, folders=repos)
+
+    ctx.invoke(checkout_branch, folders=repos, branch=branch)
+
+    click.echo("L'environement a été monter avec succès.")
+
+
 @cli.group(name="tool")
 @click.pass_context
 def tool_manager(ctx: click.Context) -> None:
@@ -508,7 +530,10 @@ def tool_manager(ctx: click.Context) -> None:
 
 @tool_manager.command(
     name="install",
-    short_help=("Installe l'outil du référentiel commun demandé " f"({', '.join(EXTERNAL_TOOLS)})"),
+    short_help=(
+        "Installe l'outil du référentiel commun demandé "
+        f"({', '.join(EXTERNAL_TOOLS)})"
+    ),
 )
 @click.argument("tools", nargs=-1)
 @click.pass_context
@@ -522,7 +547,11 @@ def install_tool(ctx: click.Context, tools: list[str]) -> None:
     else:
         target_tools = [EXTERNAL_TOOLS[tool] for tool in tools]
     for tool in target_tools:
-        create_tool_folder(tool, dest_path_folder=options.dest_path_folder, force=options.force)
+        create_tool_folder(
+            tool,
+            dest_path_folder=options.dest_path_folder,
+            force=options.force,
+        )
     click.echo("L'environement a été monter avec succès.")
 
 
@@ -554,10 +583,10 @@ async def create_branch_restriction(
     branch: str,
     token: str,
 ) -> None:
-    click.echo(f'set branch {branch} restrictions to {repo.name}')
+    click.echo(f"set branch {branch} restrictions to {repo.name}")
     result = requests.put(
-        f'https://api.github.com/repos/{repo.owner.login}/'
-        f'{repo.name}/branches/{branch}/protection',
+        f"https://api.github.com/repos/{repo.owner.login}/"
+        f"{repo.name}/branches/{branch}/protection",
         headers={
             "Accept": "application/vnd.github+json",
             "Authorization": f"Bearer {token}",
@@ -567,22 +596,22 @@ async def create_branch_restriction(
         timeout=10,
     )
     click.echo(
-        f'({branch=}|{repo.name=})[{result.status_code}] {result.text}',
+        f"({branch=}|{repo.name=})[{result.status_code}] {result.text}",
     )
 
 
 @cli.command(name="protect-branch", hidden=True)
-@click.option('-u', '--user-or-org')
-@click.option('-p', '--prefix', default='')
-@click.option('-r', '--repo-name', default=None)
+@click.option("-u", "--user-or-org")
+@click.option("-p", "--prefix", default="")
+@click.option("-r", "--repo-name", default=None)
 def set_branch_protection_rule(
     user_or_org: str,
     prefix: str,
     repo_name: str | None,
 ) -> None:
-    token = os.environ['GITHUB_TOKEN']
+    token = os.environ["GITHUB_TOKEN"]
     githubapi = github.Github(login_or_token=token)
-    branches = ('main', 'release', 'develop')
+    branches = ("main", "release", "develop")
     repos: Iterable[github.Repository.Repository]
     if not repo_name:
         repos = githubapi.search_repositories(
@@ -594,7 +623,7 @@ def set_branch_protection_rule(
             },
         )
     else:
-        repos = [githubapi.get_repo(f'{user_or_org}/{repo_name}')]
+        repos = [githubapi.get_repo(f"{user_or_org}/{repo_name}")]
     loop = asyncio.get_event_loop()
     loop.run_until_complete(
         asyncio.gather(

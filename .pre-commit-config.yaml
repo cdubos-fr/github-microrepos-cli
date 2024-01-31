@@ -13,12 +13,6 @@ repos:
   - id: mixed-line-ending
   - id: requirements-txt-fixer
 
-- repo: https://github.com/asottile/reorder_python_imports
-  rev: v3.12.0
-  hooks:
-  - id: reorder-python-imports
-    args: [--py39-plus]
-
 - repo: https://github.com/asottile/add-trailing-comma
   rev: v3.1.0
   hooks:
@@ -31,11 +25,23 @@ repos:
   - id: pyupgrade
     args: [--py311-plus]
 
-- repo: https://github.com/pre-commit/mirrors-autopep8
-  rev: v2.0.4
+- repo: https://github.com/bwhmather/ssort
+  rev: v0.12.0
   hooks:
-  - id: autopep8
-    args: ["-a", "-a", "--in-place", "--max-line-length=100"]
+  - id: ssort
+
+- repo: https://github.com/asottile/reorder_python_imports
+  rev: v3.12.0
+  hooks:
+  - id: reorder-python-imports
+    args: [--py39-plus]
+
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.1.15
+  hooks:
+    - id: ruff
+      args: [ --fix ]
+    - id: ruff-format
 
 - repo: https://github.com/PyCQA/flake8
   rev: 6.1.0
@@ -52,12 +58,10 @@ repos:
   rev: 1.7.6
   hooks:
   - id: bandit
+    args: [-ll]
     exclude: ^tests/
-    args: ["-ll"]
 
 - repo: https://github.com/commitizen-tools/commitizen
   rev: v3.13.0
   hooks:
     - id: commitizen
-    - id: commitizen-branch
-      stages: [push]

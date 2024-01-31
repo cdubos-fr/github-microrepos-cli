@@ -6,25 +6,9 @@ on:
 
 jobs:
   create-tags:
-    runs-on: ubuntu-latest
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Configure python
-        uses: actions/setup-python@v4
-        with:
-          python-version: 3.10
-
-      - name: Install project dependencies
-        run: pip install .
-
-      - id: release
-        uses: cdubos-fr/tag-python-project@main
-        with:
-          python-version: 3.10
-          python-module: "github_microrepos_cli"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    uses: cdubos-fr/reusable-workflows/.github/workflows/python-tag.yml@v0
+    with:
+      python-version: 3.10
+      module-name: "galaxy_census_backend"
+    secrets:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
